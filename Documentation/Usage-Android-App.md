@@ -35,7 +35,7 @@ Press and hold a card for its menu:
 - **Edit Container Configuration**: the same form as at install time. Every setting on it is explained in [container settings](Features.md). Changes apply at the next start.
 - **Migrate to a sparse image**: converts a directory container to an ext4 image file.
 - **Resize the sparse image**: changes the ceiling of an image container.
-- **Export container as tarball**: packs the rootfs and its settings into a `.tar.gz` you can install on another phone. Environment variables are left out unless you choose to include them, since they often hold secrets.
+- **Export container as tarball**: packs the rootfs and its settings into a `.tar.gz` or `.tar.zst` (you pick the format, `.tar.gz` is preselected) that you can install on another phone. `.tar.zst` is smaller and faster to write, but opening one outside Droidspaces needs `zstd`. Environment variables are left out unless you choose to include them, since they often hold secrets.
 - **Uninstall Container**: stops the container if it is running and deletes its rootfs and settings. You type the name to confirm. See [uninstallation](Uninstallation.md) for what stays behind.
 
 The **+** button adds a container, from the **Repository** or **Install from file**.
@@ -57,7 +57,7 @@ https://raw.githubusercontent.com/Droidspaces/linuxcontainers-mirror/refs/heads/
 
 ### Install from file
 
-Picks a `.tar.xz` or `.tar.gz` rootfs archive from the phone's storage. A container exported from Droidspaces carries its settings and they are filled into the wizard, with a warning page first so you can review them. Any other rootfs tarball works too, as long as it has an init system.
+Picks a `.tar.xz`, `.tar.gz` or `.tar.zst` rootfs archive from the phone's storage. A container exported from Droidspaces carries its settings and they are filled into the wizard, with a warning page first so you can review them. Any other rootfs tarball works too, as long as it has an init system.
 
 ### The setup wizard
 

@@ -135,8 +135,8 @@
     <string name="no_containers_installed">No containers installed</string>
     <string name="install_container_description">Install a container using the button below</string>
     <string name="install_container">Install Container</string>
-    <string name="file_picker_error">Please select a .tar.xz or .tar.gz file. Selected: %1$s</string>
-    <string name="file_picker_error_unknown">Please select a .tar.xz or .tar.gz file. Could not determine file type.</string>
+    <string name="file_picker_error">Please select a .tar.xz, .tar.gz or .tar.zst file. Selected: %1$s</string>
+    <string name="file_picker_error_unknown">Please select a .tar.xz, .tar.gz or .tar.zst file. Could not determine file type.</string>
     <string name="stopping_container">Stopping container...</string>
     <string name="uninstalling_container">Uninstalling...</string>
     <string name="failed_to_stop_container">Failed to stop container %1$s</string>
@@ -643,6 +643,9 @@
     <string name="starting_export">Starting export...</string>
     <string name="export_container_title">Export %1$s</string>
     <string name="export_action">Export</string>
+    <string name="export_format_gzip_desc">Opens with any tool</string>
+    <string name="export_format_zstd_desc">Smaller and faster to create</string>
+    <string name="export_format_zstd_hint">Opening a .tar.zst outside Droidspaces needs zstd, and older Droidspaces versions cannot install one.</string>
     <plurals name="export_env_body">
         <item quantity="one">This container has %1$d environment variable. Environment variables often hold passwords and API tokens, and anyone who gets the archive can read them.</item>
         <item quantity="other">This container has %1$d environment variables. They often hold passwords and API tokens, and anyone who gets the archive can read them.</item>

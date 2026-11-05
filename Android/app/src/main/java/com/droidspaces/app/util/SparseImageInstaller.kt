@@ -97,7 +97,8 @@ object SparseImageInstaller {
                 // For extraction, we stream the output to the logger's debug level
                 val extractResult = Shell.cmd(extractCmd).exec()
                 if (!extractResult.isSuccess) {
-                    throw Exception("Tarball extraction failed: ${extractResult.err.joinToString("\n")}")
+                    // extractCommand folds stderr into stdout, so the message is in out
+                    throw Exception("Tarball extraction failed: ${(extractResult.out + extractResult.err).joinToString("\n")}")
                 }
                 logger.i("[SPARSE] Extraction completed successfully")
 

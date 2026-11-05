@@ -1,8 +1,11 @@
 #!/system/bin/sh
-# export_container.sh - Export a Droidspaces container as a .tar.gz archive
+# export_container.sh - Export a Droidspaces container as a .tar.gz or .tar.zst archive
 # Copyright (c) 2026 ravindu644
 #
-# Usage: export_container.sh <container_name> <output_path> [--with-env]
+# Usage: export_container.sh <container_name> <output_path> [--format=gz|zst] [--with-env]
+#
+# --format picks the compression and defaults to gz, which every tool opens. zst is
+# smaller and several times faster to create, but whoever unpacks it needs zstd.
 #
 # --with-env also packs the container's .env as container.env. It is opt-in
 # because .env files tend to hold passwords and tokens.
@@ -16,6 +19,11 @@ set -e
 DS_PATH="/data/local/Droidspaces"
 CONTAINERS_BASE_PATH="${DS_PATH}/Containers"
 BUSYBOX_PATH="${DS_PATH}/bin/busybox"
+ZSTD_PATH="${DS_PATH}/bin/zstd"
+
+# Level 6 keeps most of what level 9 gains (about 2% on a rootfs) at half the memory per
+# thread, which matters with -T0 on a phone. Past 12 the ratio barely moves.
+ZSTD_LEVEL=6
 
 # --- Logging ---
 log()   { echo "[INFO] $1"; }
@@ -66,14 +74,25 @@ else
 fi
 
 # --- Argument validation ---
-if [ $# -lt 2 ] || [ $# -gt 3 ] || { [ $# -eq 3 ] && [ "$3" != "--with-env" ]; }; then
-    error "Usage: export_container.sh <container_name> <output_path> [--with-env]"
+USAGE="Usage: export_container.sh <container_name> <output_path> [--format=gz|zst] [--with-env]"
+if [ $# -lt 2 ]; then
+    error "$USAGE"
     exit 1
 fi
 
 CONTAINER_NAME="$1"
 OUTPUT_PATH="$2"
-WITH_ENV="$3"
+shift 2
+
+WITH_ENV=""
+FORMAT="gz"
+for opt in "$@"; do
+    case "$opt" in
+        --with-env) WITH_ENV="--with-env" ;;
+        --format=gz|--format=zst) FORMAT="${opt#--format=}" ;;
+        *) error "$USAGE"; exit 1 ;;
+    esac
+done
 
 if [ -z "$CONTAINER_NAME" ]; then
     error "Container name cannot be empty."
@@ -84,6 +103,23 @@ if [ -z "$OUTPUT_PATH" ]; then
     error "Output path cannot be empty."
     exit 1
 fi
+
+# Settled up front so a missing zstd fails before the fsck and the mount, not after them.
+# -T0 runs a worker per core, since tar hands over data far faster than one core can
+# compress it. -q leaves stderr to real errors. There is no --long, so the window stays
+# inside the 128 MiB any zstd accepts by default and the archive opens anywhere.
+case "$FORMAT" in
+    zst)
+        if [ ! -x "$ZSTD_PATH" ]; then
+            error "zstd not found at $ZSTD_PATH. Reinstall the backend from the app."
+            exit 1
+        fi
+        COMPRESS="$ZSTD_PATH -q -T0 -$ZSTD_LEVEL"
+        ;;
+    *)
+        COMPRESS="$BUSYBOX gzip"
+        ;;
+esac
 
 # --- Resolve container paths ---
 # Sanitize name: match directory convention (spaces -> hyphens)
@@ -135,6 +171,7 @@ fi
 
 log "Container: $CONTAINER_NAME (Directory: $CONTAINER_DIR_NAME)"
 log "Mode: $MODE"
+log "Format: .tar.$FORMAT"
 log "Rootfs: $ROOTFS_PATH"
 log "Output: $OUTPUT_PATH"
 
@@ -204,7 +241,7 @@ fi
 log "Creating archive... (this may take a while)"
 # BusyBox applies only the last -C, so prepend a small header tar without its end
 # blocks. Both rootfs modes stay read-only, and no uncompressed rootfs copy is needed.
-# HEADER_MEMBERS is word-split on purpose, both names are fixed and have no spaces.
+# HEADER_MEMBERS and COMPRESS are word-split on purpose, neither holds a space.
 "$BUSYBOX" tar -cf "$TEMP_CONFIG_DIR/header.tar" -C "$TEMP_CONFIG_DIR" $HEADER_MEMBERS
 HEADER_BLOCKS=0
 for member in $HEADER_MEMBERS; do
@@ -216,7 +253,7 @@ if ! (
     {
         "$BUSYBOX" dd if="$TEMP_CONFIG_DIR/header.tar" bs=512 count="$HEADER_BLOCKS" 2>/dev/null &&
         "$BUSYBOX" tar -cf - --exclude='./container.config' --exclude='./container.env' -C "$TAR_ROOT" .
-    } | "$BUSYBOX" gzip > "$OUTPUT_PATH"
+    } | $COMPRESS > "$OUTPUT_PATH"
 ); then
     error "tar failed. Removing incomplete archive."
     rm -f "$OUTPUT_PATH" 2>/dev/null || true

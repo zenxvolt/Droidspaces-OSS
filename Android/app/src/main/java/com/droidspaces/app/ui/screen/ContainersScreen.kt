@@ -4,6 +4,9 @@ import com.droidspaces.app.ui.component.DsDialog
 import com.droidspaces.app.ui.component.ConfirmPhraseField
 import com.droidspaces.app.ui.component.DsTextFieldDefaults
 
+import android.app.Activity
+import android.content.Context
+import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.compose.material3.ToggleFloatingActionButtonDefaults.animateIcon
@@ -17,6 +20,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.semantics.traversalIndex
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContract
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -54,6 +58,7 @@ import kotlinx.coroutines.launch
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.droidspaces.app.ui.viewmodel.SystemStatsViewModel
+import com.droidspaces.app.util.ArchiveFormat
 import com.droidspaces.app.util.ContainerInfo
 import com.droidspaces.app.util.PreferencesManager
 import com.droidspaces.app.util.FilePickerUtils
@@ -107,28 +112,30 @@ fun ContainersScreen(
     var pendingSparseOperation by remember { mutableStateOf<Pair<ContainerInfo, SparseOp>?>(null) }
     var pendingExportContainer by remember { mutableStateOf<ContainerInfo?>(null) }
     var pendingExportEnv by remember { mutableStateOf(false) }
-    var askExportEnv by remember { mutableStateOf<ContainerInfo?>(null) }
+    var pendingExportFormat by remember { mutableStateOf(ArchiveFormat.GZIP) }
+    var askExport by remember { mutableStateOf<ContainerInfo?>(null) }
     var showRepoSheet by remember { mutableStateOf(false) }
     var fabMenuExpanded by rememberSaveable { mutableStateOf(false) }
 
     // File picker launcher - CreateDocument for saving the export archive
     val exportFileLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.CreateDocument("application/gzip")
+        contract = CreateArchive()
     ) { uri: Uri? ->
         val container = pendingExportContainer
         val includeEnv = pendingExportEnv
+        val format = pendingExportFormat
         pendingExportContainer = null
         if (uri != null && container != null) {
             scope.launch {
-                opsViewModel.executeExport(container, uri, includeEnv, onError = { msg -> scope.showError(snackbarHostState, msg) })
+                opsViewModel.executeExport(container, uri, includeEnv, format, onError = { msg -> scope.showError(snackbarHostState, msg) })
             }
         }
     }
 
     // File picker launcher - accept all files, validate internally
-    // We don't filter in the picker (MIME types are unreliable for tar.xz/tar.gz)
+    // We don't filter in the picker (MIME types are unreliable for tar.xz/tar.gz/tar.zst)
     // FilePickerUtils handles proper filename extraction from any URI type (including recent files)
-    // and validates that the file is a .tar.xz or .tar.gz file
+    // and validates that the file is a .tar.xz, .tar.gz or .tar.zst file
     val filePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
@@ -248,14 +255,7 @@ fun ContainersScreen(
                                 },
                                 onExport = {
                                     onExpandedContainerNameChange(null)
-                                    // Only a container with env vars has something to decide.
-                                    if (ValidationUtils.countEnvVars(container.envFileContent) > 0) {
-                                        askExportEnv = container
-                                    } else {
-                                        pendingExportEnv = false
-                                        pendingExportContainer = container
-                                        exportFileLauncher.launch(exportFileName(container))
-                                    }
+                                    askExport = container
                                 }
                                 )
                             )
@@ -371,17 +371,18 @@ fun ContainersScreen(
             )
         }
 
-        askExportEnv?.let { container ->
+        askExport?.let { container ->
             ExportContainerDialog(
                 containerName = container.name,
                 envCount = ValidationUtils.countEnvVars(container.envFileContent),
-                onConfirm = { includeEnv ->
-                    askExportEnv = null
+                onConfirm = { format, includeEnv ->
+                    askExport = null
+                    pendingExportFormat = format
                     pendingExportEnv = includeEnv
                     pendingExportContainer = container
-                    exportFileLauncher.launch(exportFileName(container))
+                    exportFileLauncher.launch(exportFileName(container, format))
                 },
-                onDismiss = { askExportEnv = null }
+                onDismiss = { askExport = null }
             )
         }
 
@@ -449,10 +450,26 @@ fun ContainersScreen(
     }
 }
 
-/** <name>_yyyyMMdd_HHmmss.tar.gz, the name the save dialog suggests. */
-private fun exportFileName(container: ContainerInfo): String {
+/** <name>_yyyyMMdd_HHmmss.tar.gz or .tar.zst, the name the save dialog suggests. */
+private fun exportFileName(container: ContainerInfo, format: ArchiveFormat): String {
     val timestamp = java.text.SimpleDateFormat("yyyyMMdd_HHmmss", java.util.Locale.US).format(java.util.Date())
-    return "${container.name}_${timestamp}.tar.gz"
+    return "${container.name}_${timestamp}${format.suffix}"
+}
+
+/**
+ * CreateDocument fixes its MIME type when it is built, and here it depends on the format
+ * the user picked. The suggested name already ends in that format's suffix, so the type is
+ * read from it, which keeps one launcher for every format.
+ */
+private class CreateArchive : ActivityResultContract<String, Uri?>() {
+    override fun createIntent(context: Context, input: String): Intent =
+        Intent(Intent.ACTION_CREATE_DOCUMENT)
+            .addCategory(Intent.CATEGORY_OPENABLE)
+            .setType((ArchiveFormat.fromName(input) ?: ArchiveFormat.GZIP).mime)
+            .putExtra(Intent.EXTRA_TITLE, input)
+
+    override fun parseResult(resultCode: Int, intent: Intent?): Uri? =
+        if (resultCode == Activity.RESULT_OK) intent?.data else null
 }
 
 @Composable

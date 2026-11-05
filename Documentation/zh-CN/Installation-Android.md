@@ -57,7 +57,7 @@ https://raw.githubusercontent.com/Droidspaces/linuxcontainers-mirror/refs/heads/
 
 ### 从文件安装
 
-**从文件安装** 接收你手机上已有的 rootfs 归档。它必须是 `.tar.xz` 或 `.tar.gz`。用 **将容器导出为 tar 归档包** 从另一台手机导出的容器也可以在这里使用，其设置会自动填好。
+**从文件安装** 接收你手机上已有的 rootfs 归档。它必须是 `.tar.xz`、`.tar.gz` 或 `.tar.zst`。用 **将容器导出为 tar 归档包** 从另一台手机导出的容器也可以在这里使用，其设置会自动填好。
 
 ### 设置向导
 

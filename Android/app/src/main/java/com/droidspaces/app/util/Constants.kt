@@ -11,6 +11,9 @@ object Constants {
     const val BUSYBOX_BINARY_NAME = "busybox"
     const val DROIDSPACES_BINARY_PATH = "$INSTALL_PATH/$DROIDSPACES_BINARY_NAME"
     const val BUSYBOX_BINARY_PATH = "$INSTALL_PATH/$BUSYBOX_BINARY_NAME"
+    // BusyBox has no zstd applet, so .tar.zst export and import run this one
+    const val ZSTD_BINARY_NAME = "zstd"
+    const val ZSTD_BINARY_PATH = "$INSTALL_PATH/$ZSTD_BINARY_NAME"
     const val MAGISK_MODULE_PATH = "/data/adb/modules/droidspaces"
 
     // Container paths

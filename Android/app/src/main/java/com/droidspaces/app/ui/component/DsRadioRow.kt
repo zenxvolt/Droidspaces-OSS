@@ -2,6 +2,7 @@ package com.droidspaces.app.ui.component
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -29,7 +30,8 @@ import androidx.compose.ui.unit.dp
  * One choice in a single-select list: the row and its radio both select it. A
  * [fontFamily] shows the label in that face, the font picker's live preview; a
  * [delete] (its content description to its action) adds the trash button for
- * entries the user imported.
+ * entries the user imported. A [description] adds a quiet second line under the label for
+ * a choice that needs a few words of explanation.
  */
 @Composable
 fun DsRadioRow(
@@ -38,6 +40,7 @@ fun DsRadioRow(
     onClick: () -> Unit,
     fontFamily: FontFamily? = null,
     delete: Pair<String, () -> Unit>? = null,
+    description: String? = null,
 ) {
     Surface(
         // The row is the one target; the radio inside it only shows the state.
@@ -54,14 +57,22 @@ fun DsRadioRow(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(
-                text = label,
-                fontFamily = fontFamily,
-                style = MaterialTheme.typography.bodyLarge,
-                fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
-                color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier.weight(1f)
-            )
+            Column(Modifier.weight(1f)) {
+                Text(
+                    text = label,
+                    fontFamily = fontFamily,
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+                    color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                )
+                if (description != null) {
+                    Text(
+                        text = description,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                    )
+                }
+            }
             if (delete != null) {
                 IconButton(onClick = delete.second, modifier = Modifier.size(36.dp)) {
                     Icon(
