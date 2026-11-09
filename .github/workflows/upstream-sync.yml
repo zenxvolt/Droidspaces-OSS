@@ -1,16 +1,16 @@
 name: Upstream Sync
 
-# Keeps the fork's feature branch merged with ravindu644/Droidspaces-OSS main.
-# Scheduled workflows only run from the default branch, so this file has to
-# exist on main as well for the cron to fire. Manual runs work from any branch.
+# Keeps the fork's main and the tar.zst feature branch merged with
+# ravindu644/Droidspaces-OSS main. Scheduled workflows only run from the
+# default branch, so this file lives on main as well as the feature branch.
 on:
   schedule:
     - cron: '17 3 * * *'
   workflow_dispatch:
     inputs:
       branch:
-        description: Branch to sync
-        default: claude/rootfs-tar-zst-upstream-sync-ucae5p
+        description: Branch to sync, empty syncs all of them
+        default: ''
 
 permissions:
   contents: write
@@ -19,18 +19,24 @@ jobs:
   sync:
     if: github.repository != 'ravindu644/Droidspaces-OSS'
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        branch: [main, claude/rootfs-tar-zst-upstream-sync-ucae5p]
     env:
-      BRANCH: ${{ inputs.branch || 'claude/rootfs-tar-zst-upstream-sync-ucae5p' }}
+      BRANCH: ${{ matrix.branch }}
     steps:
       # GITHUB_TOKEN cannot push commits that touch .github/workflows, so an
       # upstream workflow change needs a PAT with the workflow scope in SYNC_TOKEN.
       - uses: actions/checkout@v4
+        if: inputs.branch == '' || inputs.branch == matrix.branch
         with:
           ref: ${{ env.BRANCH }}
           fetch-depth: 0
           token: ${{ secrets.SYNC_TOKEN || github.token }}
 
       - name: Merge upstream main
+        if: inputs.branch == '' || inputs.branch == matrix.branch
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
