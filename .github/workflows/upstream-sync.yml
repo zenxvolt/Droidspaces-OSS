@@ -1,0 +1,50 @@
+name: Upstream Sync
+
+# Keeps the fork's feature branch merged with ravindu644/Droidspaces-OSS main.
+# Scheduled workflows only run from the default branch, so this file has to
+# exist on main as well for the cron to fire. Manual runs work from any branch.
+on:
+  schedule:
+    - cron: '17 3 * * *'
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: Branch to sync
+        default: claude/rootfs-tar-zst-upstream-sync-ucae5p
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    if: github.repository != 'ravindu644/Droidspaces-OSS'
+    runs-on: ubuntu-latest
+    env:
+      BRANCH: ${{ inputs.branch || 'claude/rootfs-tar-zst-upstream-sync-ucae5p' }}
+    steps:
+      # GITHUB_TOKEN cannot push commits that touch .github/workflows, so an
+      # upstream workflow change needs a PAT with the workflow scope in SYNC_TOKEN.
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.BRANCH }}
+          fetch-depth: 0
+          token: ${{ secrets.SYNC_TOKEN || github.token }}
+
+      - name: Merge upstream main
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git remote add upstream https://github.com/ravindu644/Droidspaces-OSS.git
+          git fetch upstream main
+          if git merge-base --is-ancestor upstream/main HEAD; then
+            echo "Already up to date with upstream."
+            exit 0
+          fi
+          # A conflict fails the job on purpose: resolving it needs a human,
+          # and a failed scheduled run sends the repo owner an email.
+          if ! git merge --no-edit --signoff upstream/main; then
+            git merge --abort
+            echo "::error::Merge conflict with upstream/main, resolve it by hand."
+            exit 1
+          fi
+          git push origin "HEAD:$BRANCH"
