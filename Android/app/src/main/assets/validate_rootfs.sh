@@ -7,6 +7,7 @@
 # Parameters
 TARBALL="$1"
 BUSYBOX_PATH="${BUSYBOX_PATH:-/data/local/Droidspaces/bin/busybox}"
+ZSTD_PATH="${ZSTD_PATH:-/data/local/Droidspaces/bin/zstd}"
 BB="$BUSYBOX_PATH"
 
 log() { $BB echo "$1" >&2; }
@@ -23,10 +24,17 @@ if [ -z "$TARBALL" ] || [ ! -f "$TARBALL" ]; then
     exit 1
 fi
 
-# Pick a decompressor from the extension (mirrors the extractor).
-case "$TARBALL" in
-    *.xz) DECOMP="$BB xzcat" ;;
-    *)    DECOMP="$BB zcat"  ;;
+# Pick a decompressor from the extension (mirrors the extractor, which ignores case too).
+case "$(printf '%s' "$TARBALL" | $BB tr 'A-Z' 'a-z')" in
+    *.xz)  DECOMP="$BB xzcat" ;;
+    *.zst)
+        if [ ! -x "$ZSTD_PATH" ]; then
+            log "zstd not found at $ZSTD_PATH, so a .tar.zst cannot be read"
+            exit 1
+        fi
+        DECOMP="$ZSTD_PATH -dc"
+        ;;
+    *)     DECOMP="$BB zcat"  ;;
 esac
 
 # Stream entry names and confirm the core top-level directories every Linux
@@ -74,7 +82,7 @@ case "$RESULT" in
         exit 2
         ;;
     *)
-        log "Could not read archive (corrupt or not a .tar.gz/.tar.xz?)"
+        log "Could not read archive (corrupt or not a .tar.gz/.tar.xz/.tar.zst?)"
         exit 3
         ;;
 esac

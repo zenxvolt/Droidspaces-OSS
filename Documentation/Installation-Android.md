@@ -57,7 +57,7 @@ Those images are stock upstream builds. The installer applies the same Android f
 
 ### From a file
 
-**Install from file** takes a rootfs archive you already have on the phone. It must be a `.tar.xz` or `.tar.gz`. A container exported from another phone with **Export container as tarball** works here too, and its settings are filled in for you.
+**Install from file** takes a rootfs archive you already have on the phone. It must be a `.tar.xz`, `.tar.gz` or `.tar.zst`. A container exported from another phone with **Export container as tarball** works here too, and its settings are filled in for you.
 
 ### The setup wizard
 

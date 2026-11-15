@@ -105,7 +105,7 @@ object ContainerInstaller {
             // pipe (cloud storage) still costs a full copy through cacheDir.
             val archive = FilePickerUtils.realPath(context, tarballUri) ?: run {
                 logger.i("Copying tarball to temporary location...")
-                val copy = File("${context.cacheDir}/container_${sanitizedName}.tar${getTarballExtension(context, tarballUri)}")
+                val copy = File("${context.cacheDir}/container_${sanitizedName}${getTarballSuffix(context, tarballUri)}")
                 tempTarball = copy
                 context.contentResolver.openInputStream(tarballUri)?.use { input ->
                     FileOutputStream(copy).use { input.copyTo(it) }
@@ -113,6 +113,13 @@ object ContainerInstaller {
                 copy.absolutePath
             }
             logger.i("Tarball: $archive")
+
+            // The validator and the extraction both run zstd for a .tar.zst
+            if (ArchiveFormat.fromName(archive) == ArchiveFormat.ZSTD) {
+                BinaryInstaller.ensureZstd(context).getOrElse {
+                    throw Exception("Could not set up zstd to read this archive: ${it.message}")
+                }
+            }
 
             // Step 4.5: Verify the tarball is actually a Linux rootfs before we
             // extract anything, so users can't install arbitrary archives.
@@ -138,7 +145,8 @@ object ContainerInstaller {
                 logger.i("Extracting tarball to $rootfsPath...")
                 val extractResult = Shell.cmd(extractCommand(archive, rootfsPath)).exec()
                 if (!extractResult.isSuccess) {
-                    val errorMsg = extractResult.err.joinToString("\n")
+                    // extractCommand folds stderr into stdout, so the message is in out
+                    val errorMsg = (extractResult.out + extractResult.err).joinToString("\n")
                     logger.e("Extraction failed: $errorMsg")
                     throw Exception("Failed to extract tarball: $errorMsg")
                 }
@@ -224,25 +232,32 @@ object ContainerInstaller {
         }
     }
 
-    /** ".xz" for a .tar.xz, ".gz" for anything else the picker handed over. */
-    private suspend fun getTarballExtension(context: Context, uri: Uri): String =
-        if (FilePickerUtils.getFileName(context, uri)?.endsWith(".xz", ignoreCase = true) == true) ".xz" else ".gz"
+    /** ".tar.xz" or ".tar.zst" by the picked file's name, ".tar.gz" for anything else. */
+    private suspend fun getTarballSuffix(context: Context, uri: Uri): String =
+        (FilePickerUtils.getFileName(context, uri)?.let { ArchiveFormat.fromName(it) } ?: ArchiveFormat.GZIP).suffix
 
     /**
      * Shell command that unpacks [tarball] into [destination]. An exported archive
      * carries its host config, and maybe its .env, as the first members. Those are for
      * the wizard, and extracting them would leave the old host's settings and secrets
      * lying in the guest's root.
+     *
+     * It runs in a subshell so the cd and pipefail do not stay behind in the long-lived
+     * root shell, and so a failed cd cannot fall through to extracting in the wrong place.
      */
     internal fun extractCommand(tarball: String, destination: String): String {
         val skip = listOf(Constants.CONTAINER_CONFIG_FILE, RootfsConfig.ENV_MEMBER)
             .joinToString(" ") { "--exclude=$it --exclude=./$it" }
-        val unpack = if (tarball.lowercase().endsWith(".xz")) {
-            "$BUSYBOX_PATH xzcat ${quote(tarball)} | $BUSYBOX_PATH tar -xpf - $skip"
-        } else {
-            "$BUSYBOX_PATH tar -xzpf ${quote(tarball)} $skip"
+        val unpack = when (ArchiveFormat.fromName(tarball)) {
+            ArchiveFormat.XZ -> "$BUSYBOX_PATH xzcat ${quote(tarball)} | $BUSYBOX_PATH tar -xpf - $skip"
+            // Without pipefail a zstd that dies part way goes unnoticed whenever the cut falls
+            // between two tar entries, and the half-extracted rootfs is installed as if whole.
+            // No --memory flag either, so zstd keeps refusing a window above its 128 MiB default.
+            ArchiveFormat.ZSTD ->
+                "set -o pipefail && ${Constants.ZSTD_BINARY_PATH} -dc ${quote(tarball)} | $BUSYBOX_PATH tar -xpf - $skip"
+            else -> "$BUSYBOX_PATH tar -xzpf ${quote(tarball)} $skip"
         }
-        return "cd ${quote(destination)} && $unpack 2>&1"
+        return "( cd ${quote(destination)} && $unpack ) 2>&1"
     }
 
     /** [name] from the assets copied into cacheDir and made executable; the caller deletes it. */
@@ -273,7 +288,9 @@ object ContainerInstaller {
             throw Exception("Could not verify rootfs: validator unavailable (${e.message})")
         }
         try {
-            val result = Shell.cmd("BUSYBOX_PATH=$BUSYBOX_PATH ${quote(script.absolutePath)} ${quote(tarball)} 2>&1").exec()
+            val result = Shell.cmd(
+                "BUSYBOX_PATH=$BUSYBOX_PATH ZSTD_PATH=${Constants.ZSTD_BINARY_PATH} ${quote(script.absolutePath)} ${quote(tarball)} 2>&1"
+            ).exec()
             if (!result.isSuccess) {
                 val reason = result.out.map { it.trim() }.firstOrNull { it.isNotEmpty() }
                     ?: "selected file does not look like a Linux rootfs"

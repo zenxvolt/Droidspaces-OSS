@@ -51,11 +51,11 @@ object FilePickerUtils {
     }
 
     /**
-     * Check if a URI points to a valid tar.xz or tar.gz file.
+     * Check if a URI points to a valid tar.xz, tar.gz or tar.zst file.
      *
      * @param context The context to use for ContentResolver
      * @param uri The URI to check
-     * @return Pair of (isValid, fileName) where isValid is true if the file is a tar.xz or tar.gz
+     * @return Pair of (isValid, fileName) where isValid is true if the file is a tar.xz, tar.gz or tar.zst
      */
     suspend fun isValidTarball(context: Context, uri: Uri): Pair<Boolean, String?> {
         val fileName = getFileName(context, uri)
@@ -63,8 +63,7 @@ object FilePickerUtils {
             return Pair(false, null)
         }
 
-        val fileNameLower = fileName.lowercase()
-        val isValid = fileNameLower.endsWith(".tar.xz") || fileNameLower.endsWith(".tar.gz")
+        val isValid = ArchiveFormat.entries.any { fileName.endsWith(it.suffix, ignoreCase = true) }
 
         return Pair(isValid, fileName)
     }

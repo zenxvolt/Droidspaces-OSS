@@ -24,11 +24,7 @@ data class RootfsAsset(
     // Unique filename derived from metadata - avoids conflicts with generic names like rootfs.tar.xz
     // Includes a short hash of the download URL to guarantee uniqueness even across repos
     val uniqueFilename: String get() {
-        val ext = when {
-            downloadUrl.endsWith(".tar.xz") -> ".tar.xz"
-            downloadUrl.endsWith(".tar.gz")  -> ".tar.gz"
-            else -> ".tar.xz"
-        }
+        val ext = ArchiveFormat.fromName(downloadUrl)?.suffix ?: ".tar.xz"
         val sanitized = "$name $author".trim()
             .replace(Regex("[^a-zA-Z0-9._-]"), "-")
             .replace(Regex("-{2,}"), "-")

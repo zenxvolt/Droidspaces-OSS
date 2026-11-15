@@ -11,6 +11,8 @@ import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.lifecycle.AndroidViewModel
 import com.droidspaces.app.R
 import com.droidspaces.app.service.TerminalSessionService
+import com.droidspaces.app.util.ArchiveFormat
+import com.droidspaces.app.util.BinaryInstaller
 import com.droidspaces.app.util.ContainerCommandBuilder
 import com.droidspaces.app.util.ContainerInfo
 import com.droidspaces.app.util.ContainerInstaller
@@ -117,6 +119,7 @@ class ContainerOperationsViewModel(app: Application) : AndroidViewModel(app) {
         container: ContainerInfo,
         outputUri: Uri,
         includeEnv: Boolean,
+        format: ArchiveFormat,
         onError: (String) -> Unit,
     ) {
         runningOperationContainer = container.name
@@ -139,18 +142,28 @@ class ContainerOperationsViewModel(app: Application) : AndroidViewModel(app) {
             showLogViewerFor = container.name
             logger.i(string(R.string.starting_export))
 
+            if (format == ArchiveFormat.ZSTD) {
+                BinaryInstaller.ensureZstd(appContext).getOrElse {
+                    logger.e("Could not set up zstd: ${it.message}")
+                    onError(string(R.string.export_container_failed, container.name))
+                    return
+                }
+            }
+
             val deployed = ContainerInstaller.deployAsset(appContext, "export_container.sh")
             scriptFile = deployed
 
             // Write straight into the picked document when its provider exposes a file.
             // Only a pipe-backed one (cloud storage) still goes through cacheDir.
             val output = FilePickerUtils.realPath(appContext, outputUri, "w")
-                ?: File("${appContext.cacheDir}/${container.name}_export_tmp.tar.gz")
+                ?: File("${appContext.cacheDir}/${container.name}_export_tmp${format.suffix}")
                     .also { it.delete(); tempArchive = it }.absolutePath
 
+            // format.id comes from the enum, never from the user, so it needs no quoting
             val cmd = "${ContainerCommandBuilder.quote(deployed.absolutePath)} " +
                 "${ContainerCommandBuilder.quote(container.name)} " +
                 ContainerCommandBuilder.quote(output) +
+                " --format=${format.id}" +
                 if (includeEnv) " --with-env" else ""
             val success = ContainerOperationExecutor.executeCommand(
                 command = cmd,

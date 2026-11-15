@@ -11,7 +11,8 @@ object BinaryInstaller {
     private const val INSTALL_PATH = Constants.INSTALL_PATH
 
     /**
-     * Install the droidspaces and busybox binaries for this device's arch.
+     * Install the droidspaces and busybox binaries for this device's arch, and zstd when
+     * the build ships it.
      */
     suspend fun install(context: Context): Result<Unit> = withContext(Dispatchers.IO) {
         try {
@@ -32,41 +33,17 @@ object BinaryInstaller {
                 )
             }
 
-            // Helper function to install a binary
-            // Uses atomic move operation to avoid "text file busy" error when binary is running.
-            // Strategy: Copy to temp file in same directory, then use mv (atomic on same filesystem).
-            // This works even if the target binary is currently executing.
-            fun installBinary(assetName: String, targetPath: String, displayName: String): Result<Unit> {
-                val assetManager = context.assets
-                val inputStream = assetManager.open("binaries/$assetName")
-
-                // Write to a temp file in app cache first (we can write here without root)
-                val tempFile = File("${context.cacheDir}/$assetName")
-                FileOutputStream(tempFile).use { output ->
-                    inputStream.copyTo(output)
-                }
-                inputStream.close()
-
-                // The rename inside installFileDurably also dodges "text file busy" while the
-                // daemon is running the old binary.
-                val installResult = ContainerManager.installFileDurably(tempFile.absolutePath, targetPath, "755")
-                tempFile.delete()
-                if (!installResult.isSuccess) {
-                    return Result.failure(
-                        Exception("Failed to install $displayName: ${(installResult.out + installResult.err).joinToString()}")
-                    )
-                }
-
-                return Result.success(Unit)
-            }
-
             // Step 3: Install droidspaces binary
-            installBinary(droidspacesBinaryName, droidspacesTargetPath, "droidspaces")
+            installBinary(context, droidspacesBinaryName, droidspacesTargetPath, "droidspaces")
                 .getOrElse { error -> return@withContext Result.failure(error) }
 
             // Step 4: Install busybox binary
-            installBinary(busyboxBinaryName, busyboxTargetPath, "busybox")
+            installBinary(context, busyboxBinaryName, busyboxTargetPath, "busybox")
                 .getOrElse { error -> return@withContext Result.failure(error) }
+
+            // Step 4.5: zstd only serves .tar.zst, so a build or device that cannot supply it
+            // still gets a working backend. ensureZstd tries again when something needs it.
+            runCatching { installZstd(context) }
 
             // Step 5: Verification (scripts are handled by ModuleInstaller)
 
@@ -78,6 +55,54 @@ object BinaryInstaller {
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
+        }
+    }
+
+    /**
+     * Copy a bundled binary to [targetPath] as root.
+     * Uses atomic move operation to avoid "text file busy" error when binary is running.
+     * Strategy: Copy to temp file in same directory, then use mv (atomic on same filesystem).
+     * This works even if the target binary is currently executing.
+     */
+    private fun installBinary(context: Context, assetName: String, targetPath: String, displayName: String): Result<Unit> {
+        val assetManager = context.assets
+        val inputStream = assetManager.open("binaries/$assetName")
+
+        // Write to a temp file in app cache first (we can write here without root)
+        val tempFile = File("${context.cacheDir}/$assetName")
+        FileOutputStream(tempFile).use { output ->
+            inputStream.copyTo(output)
+        }
+        inputStream.close()
+
+        // The rename inside installFileDurably also dodges "text file busy" while the
+        // daemon is running the old binary.
+        val installResult = ContainerManager.installFileDurably(tempFile.absolutePath, targetPath, "755")
+        tempFile.delete()
+        if (!installResult.isSuccess) {
+            return Result.failure(
+                Exception("Failed to install $displayName: ${(installResult.out + installResult.err).joinToString()}")
+            )
+        }
+
+        return Result.success(Unit)
+    }
+
+    private fun installZstd(context: Context): Result<Unit> =
+        installBinary(context, "zstd-${DeviceArch.suffix(context)}", Constants.ZSTD_BINARY_PATH, "zstd")
+
+    /**
+     * Installs zstd if it is not there. The backend update check only compares the droidspaces
+     * binary, so an app update that brings zstd would never reach a phone that already has the
+     * backend. Export and import call this before they need it.
+     */
+    suspend fun ensureZstd(context: Context): Result<Unit> = withContext(Dispatchers.IO) {
+        if (Shell.cmd("test -x ${Constants.ZSTD_BINARY_PATH}").exec().isSuccess) {
+            return@withContext Result.success(Unit)
+        }
+        runCatching {
+            Shell.cmd("mkdir -p $INSTALL_PATH").exec()
+            installZstd(context).getOrThrow()
         }
     }
 

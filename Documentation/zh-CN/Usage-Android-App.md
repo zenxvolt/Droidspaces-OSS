@@ -35,7 +35,7 @@ keywords: droidspaces, android, app, guide, containers, panel, terminal, systemd
 - **编辑容器配置**：与安装时相同的表单。上面的每项设置都在[容器设置](./Features.md)中有说明。改动在下次启动时生效。
 - **迁移至稀疏镜像**：把目录形式的容器转换为 ext4 镜像文件。
 - **调整稀疏镜像容量**：修改镜像容器的上限。
-- **将容器导出为 tar 归档包**：把 rootfs 及其设置打包成可在另一台手机上安装的 `.tar.gz`。除非你选择包含环境变量，否则它们会被排除，因为其中常常含有敏感信息。
+- **将容器导出为 tar 归档包**：把 rootfs 及其设置打包成可在另一台手机上安装的 `.tar.gz` 或 `.tar.zst`（格式由你选择，默认预选 `.tar.gz`）。`.tar.zst` 体积更小、写入更快，但在 Droidspaces 之外打开需要 `zstd`。除非你选择包含环境变量，否则它们会被排除，因为其中常常含有敏感信息。
 - **卸载容器**：如果容器正在运行则先停止，然后删除其 rootfs 和设置。你需要输入容器名确认。残留内容见[卸载](./Uninstallation.md)。
 
 **+** 按钮用于添加容器，来源可以是 **仓库** 或 **从文件安装**。
@@ -57,7 +57,7 @@ https://raw.githubusercontent.com/Droidspaces/linuxcontainers-mirror/refs/heads/
 
 ### 从文件安装
 
-从手机存储中选择一个 `.tar.xz` 或 `.tar.gz` 的 rootfs 归档。从 Droidspaces 导出的容器会带上其设置，并自动填入向导，之前会有一个警告页供你检查。其他任何 rootfs tarball 也可以，只要它带有 init 系统。
+从手机存储中选择一个 `.tar.xz`、`.tar.gz` 或 `.tar.zst` 的 rootfs 归档。从 Droidspaces 导出的容器会带上其设置，并自动填入向导，之前会有一个警告页供你检查。其他任何 rootfs tarball 也可以，只要它带有 init 系统。
 
 ### 设置向导
 
