@@ -670,7 +670,8 @@ fun DroidspacesNavigation(
                 onNavigateBack = {
                     navController.popBackStack()
                     sharedContainerViewModel.refresh()
-                }
+                },
+                onOpenSettings = { navController.navigate(Screen.Settings.route) }
             )
         }
     }

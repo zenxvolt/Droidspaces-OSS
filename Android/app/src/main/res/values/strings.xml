@@ -431,6 +431,7 @@
     <string name="terminal_logs">Terminal Logs</string>
     <string name="installation_logs">Installation Logs</string>
     <string name="terminal_label">Terminal</string>
+    <string name="terminal_menu_autofill">Autofill</string>
     <string name="default_size_gb_hint">8</string>
     <string name="size_range_4_512_hint">4-512</string>
 

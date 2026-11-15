@@ -79,6 +79,7 @@ private data class TerminalTab(
 fun ContainerTerminalScreen(
     containerName: String,
     onNavigateBack: () -> Unit,
+    onOpenSettings: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val activity = context as? Activity
@@ -380,6 +381,7 @@ fun ContainerTerminalScreen(
                             isVisible = tab.id == activeTabId,
                             activity = activity,
                             onSessionFinished = { closeTab(tab) },
+                            onOpenSettings = onOpenSettings,
                             modifier = Modifier.fillMaxSize()
                         )
                     }
@@ -397,6 +399,7 @@ private fun TerminalTabView(
     isVisible: Boolean,
     activity: Activity?,
     onSessionFinished: () -> Unit,
+    onOpenSettings: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
@@ -456,6 +459,18 @@ private fun TerminalTabView(
                             setTypeface(terminalTypeface) // JetBrains Mono; null = system default
                             keepScreenOn = true
                             isFocusableInTouchMode = true
+                            // Long press selects text, and its toolbar's "More" calls
+                            // showContextMenu(), which shows nothing without a listener.
+                            setOnCreateContextMenuListener { menu, _, _ ->
+                                menu.add(0, 0, 0, R.string.terminal_menu_autofill).setOnMenuItemClickListener {
+                                    requestAutoFillPassword()
+                                    true
+                                }
+                                menu.add(0, 1, 1, R.string.settings).setOnMenuItemClickListener {
+                                    onOpenSettings()
+                                    true
+                                }
+                            }
                             // The renderer only paints cell backgrounds; the full-screen
                             // default background comes from the View itself.
                             if (terminalDarkTheme) {

@@ -325,6 +325,7 @@
     <string name="terminal_logs">Log Terminal</string>
     <string name="installation_logs">Log Instalasi</string>
     <string name="terminal_label">Terminal</string>
+    <string name="terminal_menu_autofill">Isi otomatis</string>
     <string name="default_size_gb_hint">8</string>
     <string name="size_range_4_512_hint">4-512</string>
     <string name="cpu_usage_label">Penggunaan CPU</string>
