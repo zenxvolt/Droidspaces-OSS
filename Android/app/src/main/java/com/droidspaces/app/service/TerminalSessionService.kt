@@ -209,7 +209,7 @@ class TerminalSessionService : Service() {
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle(getString(R.string.notification_title))
             .setContentText(notificationText())
-            .setSmallIcon(R.drawable.ic_launcher_foreground)
+            .setSmallIcon(R.drawable.ic_notification)
             .setContentIntent(openIntent)
             .addAction(NotificationCompat.Action.Builder(null, wakeLockLabel, wakeLockIntent).build())
             .addAction(NotificationCompat.Action.Builder(null, getString(R.string.notification_action_exit), exitIntent).build())
